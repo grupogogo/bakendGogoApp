@@ -158,7 +158,6 @@ const eliminarPedido = async (req, res = response) => {
 
 const editarEstadoPedido = async (req, res = response) => {
     try {
-        console.log(req.body)
         const pedido = await Pedido.findByIdAndUpdate(req.body.pedido_id, req.body, { new: true });
         res.json({
             ok: true,
