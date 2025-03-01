@@ -2,7 +2,6 @@ const Producto = require('../models/Producto');
 
 // Obtener todos los productos
 const getProductos = async (req, res) => {
-    console.log(req)
     try {
         const productos = await Producto.find();
         res.json(productos);
@@ -27,11 +26,9 @@ const getProductoById = async (req, res) => {
 // Crear un nuevo producto
 const createProducto = async (req, res) => {
     try {
-        const { producto, codigo, detalle, precio } = req.body.producto; // ✅ Coincide con el esquema
-        console.log(precio)
+        const { producto, codigo, detalle, precio } = req.body.producto; // ✅ Coincide con el esquema        
         const fechaCreacion = new Date().toISOString(); // ✅ Guardar fecha correctamente
 
-        console.log(codigo, precio, detalle, fechaCreacion);
         // ✅ Crear la instancia con los nombres correctos
         const newProducto = new Producto({
             producto,
@@ -42,7 +39,6 @@ const createProducto = async (req, res) => {
             user: req.body.user.uid // ✅ Extraer usuario de `req.user`
         });
 
-        console.log(newProducto);
 
         // ✅ Guardar en MongoDB
         const productoGuardado = await newProducto.save();

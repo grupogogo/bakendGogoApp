@@ -12,7 +12,6 @@ const getClientes = async (req, res = response) => {
     })
 }
 const crearCliente = async (req, res = response) => {
-console.log(req)
     const {
         nombre,
         nitCC,
