@@ -15,7 +15,7 @@ const ClienteSchema = Schema({
         require: true
     },
     nitCC: {
-        type: Number,
+        type: String,
         require: true
     },
     email: {
