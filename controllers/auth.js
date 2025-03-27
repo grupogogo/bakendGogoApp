@@ -26,7 +26,7 @@ const crearUsuario = async (req, res = response) => {
                 password,
                 telefono,
                 numIdentificacion,
-                rol: 'default'
+                rol: 'planta'
             }
         );
         /* Encriptar contrasenia */

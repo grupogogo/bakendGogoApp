@@ -22,6 +22,7 @@ app.use('/api/events', require('./routes/events'));
 app.use('/api/clientes', require('./routes/clientes'));
 app.use('/api/pedidos', require('./routes/pedidos'));
 app.use('/api/products', require('./routes/products'));
+app.use('/api/gastos', require('./routes/gastos'));
 
 // Servir archivos estáticos de React después de las rutas API
 app.use(express.static(path.join(__dirname, "public")));

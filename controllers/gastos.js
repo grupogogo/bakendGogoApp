@@ -1,11 +1,10 @@
-const Producto = require('../models/Producto');
+const Gastos = require('../models/Gastos');
 
-// Obtener todos los productos
-const getProductos = async (req, res) => {
-    const userId = req.headers['x-user-id'];
+// Obtener todos los gastos
+const getGastos = async (req, res) => {
     try {
-        const productos = await Producto.find({ user: userId });
-        res.json(productos);
+        const gastos = await Gastos.find();
+        res.json(gastos);
     } catch (error) {
         res.status(500).json({ message: 'Error al obtener los productos' });
     }
@@ -24,27 +23,48 @@ const getProductoById = async (req, res) => {
     }
 }; */
 
-// Crear un nuevo producto
-const createProducto = async (req, res) => {
+// Crear un nuevo Gasto
+const crearGasto = async (req, res) => {
     try {
-        const { producto, codigo, detalle, precio } = req.body.producto; // ✅ Coincide con el esquema        
-        const fechaCreacion = new Date().toISOString(); // ✅ Guardar fecha correctamente
+        const {
+            tipoGasto,
+            fecha,
+            proveedor,
+            categoria,
+            subCategoria,
+            gasto,
+            codigo,
+            cantidad,
+            precio,
+            detalle
+        }
+            = req.body.gasto;
+
+        //const fechaCreacion = new Date().toISOString(); // ✅ Guardar fecha correctamente
 
         // ✅ Crear la instancia con los nombres correctos
-        const newProducto = new Producto({
-            producto,
+        const newGasto = new Gastos({
+            tipoGasto,
+            fecha,
+            proveedor,
+            categoria,
+            subCategoria,
+            gasto,
             codigo,
+            cantidad,
             precio,
             detalle,
-            fechaCreacion,
             user: req.body.user.uid // ✅ Extraer usuario de `req.user`
         });
 
 
         // ✅ Guardar en MongoDB
-        const productoGuardado = await newProducto.save();
+        const gastoGuardado = await newGasto.save();
 
-        res.status(201).json(productoGuardado);
+        res.status(201).json({
+            gasto: gastoGuardado,
+            estado: 'guardado'
+        });
     } catch (error) {
         console.error(error);
         res.status(500).json({ message: error.message });
@@ -79,9 +99,6 @@ const deleteProducto = async (req, res) => {
 }; */
 
 module.exports = {
-    getProductos, /*
-     getProductoById, */
-    createProducto,
-    /*  updateProducto,
-     deleteProducto */
+    crearGasto,
+    getGastos
 };

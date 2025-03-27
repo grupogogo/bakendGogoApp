@@ -4,8 +4,7 @@ const ProductosSchema = Schema({
     user: {
         type: Schema.Types.ObjectId,
         ref: 'Usuario'
-    },
-    
+    },    
     fechaCreacion: {
         type: Date,
         require: false,
@@ -32,5 +31,4 @@ ProductosSchema.method('toJSON', function () {
     object.producto_id = _id;
     return object;
 })
-
 module.exports = model('Productos', ProductosSchema);
