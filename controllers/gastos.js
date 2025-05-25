@@ -84,21 +84,24 @@ const updateProducto = async (req, res) => {
         res.status(500).json({ message: 'Error al actualizar el producto' });
     }
 };
-
+*/
 // Eliminar un producto
-const deleteProducto = async (req, res) => {
+const eliminarGasto = async (req, res) => {
+    const idPedido = req.params.gastos_id;
+    console.log(idPedido)
     try {
-        const productoEliminado = await Producto.findByIdAndDelete(req.params.id);
-        if (!productoEliminado) {
-            return res.status(404).json({ message: 'Producto no encontrado' });
+        const gastoEliminado = await Gastos.findByIdAndDelete(idPedido);
+        if (!gastoEliminado) {
+            return res.status(404).json({ message: 'Gasto no encontrado' });
         }
-        res.json({ message: 'Producto eliminado' });
+        res.json({ message: 'Gasto eliminado' });
     } catch (error) {
-        res.status(500).json({ message: 'Error al eliminar el producto' });
+        res.status(500).json({ message: 'Error al eliminar el gasto' });
     }
-}; */
+};
 
 module.exports = {
     crearGasto,
-    getGastos
+    getGastos,
+    eliminarGasto
 };
