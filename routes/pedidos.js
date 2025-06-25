@@ -1,10 +1,7 @@
 const { Router } = require('express')
 const { validarJWT } = require('../middlewares/validar-jwt');
 
-/* const { isDate } = require('../helpers/isDate')
-const { validarCampos } = require('../middlewares/validar-campos') */
-const { getPedidos, crearPedido, eliminarPedido, editarEstadoPedido, getPedidosCliente } = require('../controllers/pedido');
-//const { check } = require('express-validator');
+const { getPedidos, crearPedido, eliminarPedido, editarEstadoPedido, getPedidosCliente, getOldOrders } = require('../controllers/pedido');
 
 
 const router = Router();
@@ -12,6 +9,8 @@ const router = Router();
 router.use(validarJWT);
 
 router.get('/', getPedidos);
+
+router.get('/oldOrders', getOldOrders);
 
 router.get('/cliente/:cliente_id', getPedidosCliente); // Nueva ruta
 

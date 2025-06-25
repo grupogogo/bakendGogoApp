@@ -4,6 +4,7 @@ const { default: mongoose } = require('mongoose');
 
 const ItemPedido = mongoose.models.ItemPedido || mongoose.model("ItemPedido", new mongoose.Schema({}, { strict: false }));
 const PedidoEliminado = mongoose.models.PedidoEliminado || mongoose.model("PedidoEliminado", new mongoose.Schema({}, { strict: false }));
+const oldOrders = mongoose.models.oldOrders || mongoose.model("oldOrders", new mongoose.Schema({}, { strict: false }));
 
 const getPedidos = async (req, res = response) => {
     try {
@@ -22,6 +23,23 @@ const getPedidos = async (req, res = response) => {
             ok: false,
             error,
             msg: 'getPedidos'
+        });
+    }
+}
+
+const getOldOrders = async (req, res = response) => {
+    try {
+        const orders = await oldOrders.find();            
+        res.json({
+            ok: true,
+            pedidos: orders,
+            msg: 'getOldOrders'
+        });
+    } catch (error) {
+        res.json({
+            ok: false,
+            error,
+            msg: 'getOldOrders'
         });
     }
 }
@@ -180,5 +198,6 @@ module.exports = {
     crearPedido,
     eliminarPedido,
     editarEstadoPedido,
-    getPedidosCliente
+    getPedidosCliente,
+    getOldOrders
 }
