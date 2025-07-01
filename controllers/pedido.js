@@ -5,6 +5,7 @@ const { default: mongoose } = require('mongoose');
 const ItemPedido = mongoose.models.ItemPedido || mongoose.model("ItemPedido", new mongoose.Schema({}, { strict: false }));
 const PedidoEliminado = mongoose.models.PedidoEliminado || mongoose.model("PedidoEliminado", new mongoose.Schema({}, { strict: false }));
 const oldOrders = mongoose.models.oldOrders || mongoose.model("oldOrders", new mongoose.Schema({}, { strict: false }));
+const oldOrdersItems = mongoose.models.oldOrdersItems || mongoose.model("itemsololders", new mongoose.Schema({}, { strict: false }));
 
 const getPedidos = async (req, res = response) => {
     try {
@@ -29,28 +30,46 @@ const getPedidos = async (req, res = response) => {
 
 const getOldOrders = async (req, res = response) => {
     try {
-        const orders = await oldOrders.find();            
+        const orders = await oldOrders.find();
+        const orderItems = await oldOrdersItems.find();
+
+        // Agrupar ítems por remisión
+        const itemsByRemision = {};
+        for (const item of orderItems) {
+            const rem = item.REMISION;
+            if (!itemsByRemision[rem]) {
+                itemsByRemision[rem] = [];
+            }
+            itemsByRemision[rem].push(item);
+        }
+
+        // Unir pedidos con sus ítems
+        const pedidosConItems = orders.map(order => ({
+            ...order.toObject(),
+            items: itemsByRemision[order.REMISION] || []
+        }));
         res.json({
             ok: true,
-            pedidos: orders,
+            pedidos: pedidosConItems,
             msg: 'getOldOrders'
         });
     } catch (error) {
-        res.json({
+        res.status(500).json({
             ok: false,
             error,
-            msg: 'getOldOrders'
+            msg: error.message
         });
     }
-}
+};
+
 
 const getPedidosCliente = async (req, res = response) => {
     try {
         // Obtener el cliente_id de los parámetros de la solicitud
         const { cliente_id: cliente } = req.params;
-        
+
         // Buscar los pedidos asociados al cliente_id
-        const pedidos = await Pedido.find({ cliente })                        
+        const pedidos = await Pedido.find({ cliente })
             .populate({ path: 'itemPedido' }) // Populate para los ítems del pedido            
         // Retornar la respuesta con los pedidos
         res.json({
