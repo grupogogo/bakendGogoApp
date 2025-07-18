@@ -1,9 +1,15 @@
 const { response } = require('express');
 const Cliente = require('../models/Clientes');
 const Precios = require('../models/Precios');
+const { default: mongoose } = require('mongoose');
+
+
+const pedidos = mongoose.models.pedidos || mongoose.model("pedidos", new mongoose.Schema({}, { strict: false }));
 
 const getClientes = async (req, res = response) => {
     const clientes = await Cliente.find().populate('user', 'name').populate('precios');
+    const Pedido = require('../models/Pedido'); // Asegúrate que la ruta es correcta
+
 
     res.json({
         ok: true,
@@ -80,7 +86,7 @@ const crearCliente = async (req, res = response) => {
     }
 }
 
-const actualizarCliente = async (req, res = response) => {    
+const actualizarCliente = async (req, res = response) => {
     const clienteid = req.body.cliente_id;
     const uid = req.body.user._id;
 
@@ -131,48 +137,43 @@ const actualizarCliente = async (req, res = response) => {
 
 
 const eliminarCliente = async (req, res = response) => {
+    const idCliente = req.params.id_cliente;
 
-    res.json({
-        ok: true,
-        msg: 'EliminarCliente'
-    })
 
-    /*  const eventoId = req.params.id;
-     const uid = req.uid;
- 
-     try {
-         const evento = await Evento.findById(eventoId);
- 
-         if (!evento) {
-             return res.status(404).json({
-                 ok: false,
-                 msg: 'No existe el evento por el id'
-             })
-         }
-         if (evento.user.toString() !== uid) {
-             return res.status(401).json({
-                 ok: false,
-                 mgs: "El usuario no tiene privilegios para eliminar esta informacion que no creó"
-             });
-         }
- 
-         const eventoEliminado = await Evento.findByIdAndDelete(eventoId);
-         res.json({
-             ok: true,
-             msg: 'Evento Eliminado'
-         });
-     } catch (error) {
-         console.log(error);
-         res.status(500).json({
-             ok: false,
-             msg: ('Hable con el admin sobre actualizacion de eventos')
-         })
-     } */
-}
+    const pedidosRelacionados = await pedidos.find({
+        cliente: new mongoose.Types.ObjectId(idCliente)
+    });
+
+    try {
+        // Verifica si hay pedidos relacionados con el cliente
+
+        if (pedidosRelacionados.length > 0) {
+            return res.status(400).json({
+                ok: false,
+                message: 'No se puede eliminar el cliente porque tiene pedidos relacionados',
+                pedidosRelacionados: pedidosRelacionados.length
+            });
+        }
+
+        // Si no hay pedidos relacionados, elimina el cliente
+        const clienteEliminado = await Cliente.findByIdAndDelete(idCliente);
+
+        if (!clienteEliminado) {
+            return res.status(404).json({ message: 'Cliente no encontrado' });
+        }
+
+        res.json({ ok: true, message: 'Cliente eliminado correctamente' });
+
+    } catch (error) {
+        console.error('Error al eliminar el cliente:', error);
+        res.status(500).json({ message: 'Error al eliminar el cliente' });
+    }
+};
+
 
 module.exports = {
     crearCliente,
     getClientes,
     actualizarCliente,
-    eliminarCliente,    
+    eliminarCliente,
 }
