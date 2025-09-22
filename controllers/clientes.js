@@ -63,7 +63,7 @@ const crearCliente = async (req, res = response) => {
 
         const precios = new Precios({
             cliente: clienteGuardado._id,
-            precioKits: { kcg, kcp, kb },
+            precioKits: { kcg, kcp, kb, kce: 0 },
             precioCirios: { cc, cb },
             precioGuantes: { gb, gn, gm }
         });
@@ -87,8 +87,10 @@ const crearCliente = async (req, res = response) => {
 }
 
 const actualizarCliente = async (req, res = response) => {
+
     const clienteid = req.body.cliente_id;
     const uid = req.body.user._id;
+
 
 
     try {
@@ -112,6 +114,7 @@ const actualizarCliente = async (req, res = response) => {
             user: uid
         }
 
+        //console.log(req.body.precios)
         const nuevoPrecio = {
             ...req.body.precios,
             cliente_id: clienteid
