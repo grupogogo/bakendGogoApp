@@ -9,7 +9,8 @@ const PreciosSchema = Schema({
     precioKits: {
         kcg: { type: Number, require: false },
         kcp: { type: Number, require: false },
-        kb: { type: Number, require: false }
+        kb: { type: Number, require: false },
+        kce: { type: Number, require: false }
     },
     precioCirios: {
         cc: { type: Number, require: false },

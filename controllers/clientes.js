@@ -7,10 +7,8 @@ const { default: mongoose } = require('mongoose');
 const pedidos = mongoose.models.pedidos || mongoose.model("pedidos", new mongoose.Schema({}, { strict: false }));
 
 const getClientes = async (req, res = response) => {
-    const clientes = await Cliente.find().populate('user', 'name').populate('precios');
-    const Pedido = require('../models/Pedido'); // Asegúrate que la ruta es correcta
 
-
+    const clientes = await Cliente.find({ user: req.uid }).populate('user', 'name').populate('precios');
     res.json({
         ok: true,
         clientes: clientes,
