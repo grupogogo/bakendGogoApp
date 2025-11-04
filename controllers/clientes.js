@@ -54,14 +54,14 @@ const crearCliente = async (req, res = response) => {
         });
         const clienteGuardado = await cliente.save();
 
-        const { kcg, kcp, kb } = precioKits;
+        const { kcg, kcp, kb, kce } = precioKits;
         const { cc, cb } = precioCirios;
         const { gb, gn, gm } = precioGuantes;
         // Crear los precios asociados al cliente
 
         const precios = new Precios({
             cliente: clienteGuardado._id,
-            precioKits: { kcg, kcp, kb, kce: 0 },
+            precioKits: { kcg, kcp, kb, kce },
             precioCirios: { cc, cb },
             precioGuantes: { gb, gn, gm }
         });
