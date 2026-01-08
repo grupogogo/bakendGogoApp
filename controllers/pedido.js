@@ -200,7 +200,7 @@ const editarEstadoPedido = async (req, res = response) => {
             ok: true,
             msg: 'Editar Estado pedido ',
             pedido,
-            estado,
+            estado: req.body.estado,
             mjs2: req.body,
         });
     } catch (error) {
@@ -212,11 +212,49 @@ const editarEstadoPedido = async (req, res = response) => {
     }
 }
 
+const editarItemsPedido = async (req, res = response) => {
+    const { pedido_id } = req.params;
+    const { items } = req.body;
+
+    try {
+        const objectIdPedido = new mongoose.Types.ObjectId(pedido_id);
+
+        // Buscar el documento ItemPedido asociado al pedido
+        const itemPedidoDoc = await ItemPedido.findOne({ id_Pedido: objectIdPedido });
+
+        if (!itemPedidoDoc) {
+            return res.status(404).json({
+                ok: false,
+                msg: 'No se encontraron items para este pedido'
+            });
+        }
+
+        // Actualizar los items
+        itemPedidoDoc.itemPedido = items;
+        await itemPedidoDoc.save();
+
+        res.json({
+            ok: true,
+            msg: 'Items del pedido actualizados correctamente',
+            itemPedido: itemPedidoDoc
+        });
+
+    } catch (error) {
+        console.log(error);
+        res.status(500).json({
+            ok: false,
+            msg: 'Error al actualizar los items del pedido',
+            error
+        });
+    }
+}
+
 module.exports = {
     getPedidos,
     crearPedido,
     eliminarPedido,
     editarEstadoPedido,
     getPedidosCliente,
-    getOldOrders
+    getOldOrders,
+    editarItemsPedido
 }
