@@ -1,5 +1,5 @@
 const { Router } = require('express')
-const { crearGasto, getGastos, eliminarGasto } = require('../controllers/gastos');
+const { crearGasto, getGastos, eliminarGasto, actualizarGasto } = require('../controllers/gastos');
 
 const router = Router();
 
@@ -7,7 +7,7 @@ router.get('/', getGastos);
 
 router.post('/', crearGasto);
 
-/* router.put('/:id_producto', editarProducto);*/
+router.put('/:gastos_id', actualizarGasto);
 
 router.delete('/:gastos_id', eliminarGasto); 
 

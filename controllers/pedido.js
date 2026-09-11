@@ -33,21 +33,28 @@ const getOldOrders = async (req, res = response) => {
         const orders = await oldOrders.find();
         const orderItems = await oldOrdersItems.find();
 
-        // Agrupar ítems por remisión
+        // Agrupar ítems por remisión asegurando formato string y trim
         const itemsByRemision = {};
         for (const item of orderItems) {
-            const rem = item.REMISION;
-            if (!itemsByRemision[rem]) {
-                itemsByRemision[rem] = [];
+            const rawItem = item.toObject ? item.toObject() : item;
+            const rem = String(rawItem.REMISION || rawItem.remision || '').trim();
+            if (rem) {
+                if (!itemsByRemision[rem]) {
+                    itemsByRemision[rem] = [];
+                }
+                itemsByRemision[rem].push(rawItem);
             }
-            itemsByRemision[rem].push(item);
         }
 
         // Unir pedidos con sus ítems
-        const pedidosConItems = orders.map(order => ({
-            ...order.toObject(),
-            items: itemsByRemision[order.REMISION] || []
-        }));
+        const pedidosConItems = orders.map(order => {
+            const rawOrder = order.toObject ? order.toObject() : order;
+            const rem = String(rawOrder.REMISION || rawOrder.remision || '').trim();
+            return {
+                ...rawOrder,
+                items: itemsByRemision[rem] || []
+            };
+        });
         res.json({
             ok: true,
             pedidos: pedidosConItems,
@@ -195,59 +202,128 @@ const eliminarPedido = async (req, res = response) => {
 
 const editarEstadoPedido = async (req, res = response) => {
     try {
-        const pedido = await Pedido.findByIdAndUpdate(req.body.pedido_id, req.body, { new: true });
+        const pedidoId = req.params.id_pedido || req.body.pedido_id || req.body._id;
+        const fechaActual = new Date().toISOString();
+
+        const updateData = {
+            ...req.body,
+            fechaModificacionEstado: req.body.fechaModificacionEstado || fechaActual,
+            userEdit: req.uid || req.body.userEdit || ''
+        };
+
+        if (req.body.estado === 'pagado') {
+            updateData.fechaPagado = req.body.fechaPagado || fechaActual;
+        }
+
+        const entradaHistorial = {
+            estado: req.body.estado,
+            fecha: fechaActual,
+            userEdit: req.uid || req.body.userEdit || ''
+        };
+
+        const pedido = await Pedido.findByIdAndUpdate(
+            pedidoId,
+            {
+                $set: updateData,
+                $push: { historialEstados: entradaHistorial }
+            },
+            { new: true }
+        );
+
         res.json({
             ok: true,
-            msg: 'Editar Estado pedido ',
+            msg: 'Estado de pedido actualizado',
             pedido,
             estado: req.body.estado,
-            mjs2: req.body,
         });
     } catch (error) {
-        res.json({
-            ok: true,
-            msg: 'Editar Estado pedido ',
-            error
+        console.error('Error al editar estado pedido:', error);
+        res.status(500).json({
+            ok: false,
+            msg: 'Error al actualizar estado pedido',
+            error: error.message || error
         });
     }
 }
 
 const editarItemsPedido = async (req, res = response) => {
     const { pedido_id } = req.params;
-    const { items } = req.body;
+    const { items, info } = req.body;
 
     try {
-        const objectIdPedido = new mongoose.Types.ObjectId(pedido_id);
+        const pedido = await Pedido.findById(pedido_id);
 
-        // Buscar el documento ItemPedido asociado al pedido
-        const itemPedidoDoc = await ItemPedido.findOne({ id_Pedido: objectIdPedido });
-
-        if (!itemPedidoDoc) {
+        if (!pedido) {
             return res.status(404).json({
                 ok: false,
-                msg: 'No se encontraron items para este pedido'
+                msg: 'No existe el pedido con ese ID'
             });
         }
 
-        // Actualizar los items
-        itemPedidoDoc.itemPedido = items;
-        await itemPedidoDoc.save();
+        // Validación estricta: Solo pedidos en estado pendiente pueden ser editados
+        if (pedido.estado !== 'pendiente') {
+            return res.status(400).json({
+                ok: false,
+                msg: 'Solo se pueden editar pedidos que estén en estado pendiente'
+            });
+        }
+
+        // Buscar el documento ItemPedido asociado
+        let itemPedidoDoc = null;
+        if (pedido.itemPedido && pedido.itemPedido.length > 0) {
+            const itemDocId = pedido.itemPedido[0]._id || pedido.itemPedido[0];
+            itemPedidoDoc = await ItemPedido.findById(itemDocId);
+        }
+        if (!itemPedidoDoc) {
+            itemPedidoDoc = await ItemPedido.findOne({ id_Pedido: pedido._id });
+        }
+
+        console.log('--- EDITAR ITEMS PEDIDO LLAMADO ---', pedido_id);
+
+        if (itemPedidoDoc && items) {
+            itemPedidoDoc = await ItemPedido.findByIdAndUpdate(
+                itemPedidoDoc._id,
+                { itemPedido: items },
+                { new: true }
+            );
+        } else if (items) {
+            // Si no existía, crearlo
+            const nuevoItem = new ItemPedido({
+                id_Pedido: pedido._id,
+                itemPedido: items
+            });
+            await nuevoItem.save();
+            pedido.itemPedido = [nuevoItem._id];
+        }
+
+        // Actualizar información general del pedido si se envió
+        if (info) {
+            if (info.formaPago !== undefined) pedido.formaPago = info.formaPago;
+            if (info.tipoDespacho !== undefined) pedido.tipoDespacho = info.tipoDespacho;
+            if (info.costoEnvio !== undefined) pedido.costoEnvio = info.costoEnvio;
+            if (info.detalleGeneral !== undefined) pedido.detalleGeneral = info.detalleGeneral;
+            if (info.numeroGuia !== undefined) pedido.numeroGuia = info.numeroGuia;
+        }
+
+        pedido.userEdit = req.uid;
+        const pedidoActualizado = await pedido.save();
 
         res.json({
             ok: true,
-            msg: 'Items del pedido actualizados correctamente',
+            msg: 'Pedido e ítems actualizados correctamente',
+            pedido: pedidoActualizado,
             itemPedido: itemPedidoDoc
         });
 
     } catch (error) {
-        console.log(error);
+        console.error('Error al editar items del pedido:', error);
         res.status(500).json({
             ok: false,
-            msg: 'Error al actualizar los items del pedido',
-            error
+            msg: 'Error interno al actualizar el pedido',
+            error: error.message || error
         });
     }
-}
+};
 
 module.exports = {
     getPedidos,
@@ -257,4 +333,4 @@ module.exports = {
     getPedidosCliente,
     getOldOrders,
     editarItemsPedido
-}
+};

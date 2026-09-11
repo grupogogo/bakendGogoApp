@@ -16,9 +16,9 @@ router.get('/cliente/:cliente_id', getPedidosCliente); // Nueva ruta
 
 router.post('/', crearPedido);
 
-router.put('/:id_pedido', editarEstadoPedido);
-
 router.put('/items/:pedido_id', editarItemsPedido);
+
+router.put('/:id_pedido', editarEstadoPedido);
 
 router.delete('/:pedido_id', eliminarPedido);
 

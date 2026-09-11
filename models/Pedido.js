@@ -45,6 +45,21 @@ const PedidoSchema = Schema({
         type: String,
         require: false
     },
+    fechaModificacionEstado: {
+        type: String,
+        require: false
+    },
+    fechaPagado: {
+        type: String,
+        require: false
+    },
+    historialEstados: [
+        {
+            estado: String,
+            fecha: String,
+            userEdit: String
+        }
+    ],
     itemPedido: [
         {
             type: Schema.Types.ObjectId,

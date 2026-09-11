@@ -72,19 +72,65 @@ const crearGasto = async (req, res) => {
 };
 
 
-/* // Actualizar un producto existente
-const updateProducto = async (req, res) => {
+// Actualizar un Gasto existente
+const actualizarGasto = async (req, res) => {
+    const gastoId = req.params.gastos_id;
     try {
-        const productoActualizado = await Producto.findByIdAndUpdate(req.params.id, req.body, { new: true });
-        if (!productoActualizado) {
-            return res.status(404).json({ message: 'Producto no encontrado' });
+        const gastoExistente = await Gastos.findById(gastoId);
+        if (!gastoExistente) {
+            return res.status(404).json({
+                ok: false,
+                message: 'Gasto no encontrado'
+            });
         }
-        res.json(productoActualizado);
+
+        const dataGasto = req.body.gasto || req.body;
+        const {
+            tipoGasto,
+            fecha,
+            proveedor,
+            categoria,
+            subCategoria,
+            gasto,
+            codigo,
+            cantidad,
+            precio,
+            detalle
+        } = dataGasto;
+
+        const camposActualizar = {
+            ...(tipoGasto !== undefined && { tipoGasto }),
+            ...(fecha !== undefined && { fecha }),
+            ...(proveedor !== undefined && { proveedor }),
+            ...(categoria !== undefined && { categoria }),
+            ...(subCategoria !== undefined && { subCategoria }),
+            ...(gasto !== undefined && { gasto }),
+            ...(codigo !== undefined && { codigo }),
+            ...(cantidad !== undefined && { cantidad }),
+            ...(precio !== undefined && { precio }),
+            ...(detalle !== undefined && { detalle }),
+        };
+
+        const gastoActualizado = await Gastos.findByIdAndUpdate(
+            gastoId,
+            camposActualizar,
+            { new: true }
+        );
+
+        res.json({
+            ok: true,
+            gasto: gastoActualizado,
+            message: 'Gasto actualizado correctamente'
+        });
     } catch (error) {
-        res.status(500).json({ message: 'Error al actualizar el producto' });
+        console.error(error);
+        res.status(500).json({
+            ok: false,
+            message: 'Error al actualizar el gasto: ' + error.message
+        });
     }
 };
-*/
+
 // Eliminar un producto
 const eliminarGasto = async (req, res) => {
     const idPedido = req.params.gastos_id;
@@ -102,6 +148,7 @@ const eliminarGasto = async (req, res) => {
 
 module.exports = {
     crearGasto,
+    actualizarGasto,
     getGastos,
     eliminarGasto
 };

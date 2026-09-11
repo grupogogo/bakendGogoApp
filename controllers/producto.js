@@ -27,7 +27,7 @@ const getProductoById = async (req, res) => {
 // Crear un nuevo producto
 const createProducto = async (req, res) => {
     try {
-        const { producto, codigo, detalle, precio } = req.body.producto; // ✅ Coincide con el esquema        
+        const { producto, codigo, detalle, precio, categoria } = req.body.producto; // ✅ Coincide con el esquema        
         const fechaCreacion = new Date().toISOString(); // ✅ Guardar fecha correctamente
 
         // ✅ Crear la instancia con los nombres correctos
@@ -36,10 +36,10 @@ const createProducto = async (req, res) => {
             codigo,
             precio,
             detalle,
+            categoria: categoria || 'Kits',
             fechaCreacion,
             user: req.body.user.uid // ✅ Extraer usuario de `req.user`
         });
-
 
         // ✅ Guardar en MongoDB
         const productoGuardado = await newProducto.save();
@@ -51,16 +51,25 @@ const createProducto = async (req, res) => {
     }
 };
 
-
-/* // Actualizar un producto existente
+// Actualizar un producto existente
 const updateProducto = async (req, res) => {
     try {
-        const productoActualizado = await Producto.findByIdAndUpdate(req.params.id, req.body, { new: true });
+        const { id } = req.params;
+        const dataProducto = req.body.producto || req.body;
+        const { producto, codigo, detalle, precio, categoria } = dataProducto;
+
+        const productoActualizado = await Producto.findByIdAndUpdate(
+            id,
+            { producto, codigo, detalle, precio, categoria },
+            { new: true }
+        );
+
         if (!productoActualizado) {
             return res.status(404).json({ message: 'Producto no encontrado' });
         }
-        res.json(productoActualizado);
+        res.json({ ok: true, producto: productoActualizado });
     } catch (error) {
+        console.error(error);
         res.status(500).json({ message: 'Error al actualizar el producto' });
     }
 };
@@ -68,20 +77,21 @@ const updateProducto = async (req, res) => {
 // Eliminar un producto
 const deleteProducto = async (req, res) => {
     try {
-        const productoEliminado = await Producto.findByIdAndDelete(req.params.id);
+        const { id } = req.params;
+        const productoEliminado = await Producto.findByIdAndDelete(id);
         if (!productoEliminado) {
             return res.status(404).json({ message: 'Producto no encontrado' });
         }
-        res.json({ message: 'Producto eliminado' });
+        res.json({ ok: true, message: 'Producto eliminado' });
     } catch (error) {
+        console.error(error);
         res.status(500).json({ message: 'Error al eliminar el producto' });
     }
-}; */
+};
 
 module.exports = {
-    getProductos, /*
-     getProductoById, */
+    getProductos,
     createProducto,
-    /*  updateProducto,
-     deleteProducto */
+    updateProducto,
+    deleteProducto
 };

@@ -114,8 +114,26 @@ const revalidarToken = async (req, res = response) => {
     });
 }
 
+// GET - Obtener todos los usuarios de la plataforma (para asignación de tareas)
+const getUsuarios = async (req, res = response) => {
+    try {
+        const usuarios = await Usuario.find({}, 'name email rol telefono numIdentificacion').sort({ name: 1 });
+        res.json({
+            ok: true,
+            usuarios
+        });
+    } catch (error) {
+        console.log(error);
+        res.status(500).json({
+            ok: false,
+            msg: 'Error al obtener usuarios'
+        });
+    }
+};
+
 module.exports = {
     crearUsuario,
     loginUsuario,
-    revalidarToken
+    revalidarToken,
+    getUsuarios
 }

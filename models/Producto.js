@@ -23,7 +23,13 @@ const ProductosSchema = Schema({
     },
     detalle: {
         type: String,
-        require: false
+        require: false,
+    },
+    categoria: {
+        type: String,
+        enum: ['Kits', 'Guantes', 'Otros'],
+        default: 'Kits',
+        require: false,
     },
 });
 ProductosSchema.method('toJSON', function () {
