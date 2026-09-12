@@ -33,6 +33,28 @@ const AnticipoSchema = Schema({
         type: Date,
         default: Date.now
     },
+    soportes: [{
+        nombre: {
+            type: String,
+            required: true
+        },
+        tipo: {
+            type: String,
+            default: 'application/octet-stream'
+        },
+        data: {
+            type: String,
+            required: true
+        },
+        size: {
+            type: Number,
+            default: 0
+        },
+        fechaSubida: {
+            type: Date,
+            default: Date.now
+        }
+    }],
     user: {
         type: Schema.Types.ObjectId,
         ref: 'Usuario'

@@ -3,7 +3,7 @@ const Gastos = require('../models/Gastos');
 // Obtener todos los gastos
 const getGastos = async (req, res) => {
     try {
-        const gastos = await Gastos.find();
+        const gastos = await Gastos.find().populate('user', 'name nombre email');
         res.json(gastos);
     } catch (error) {
         res.status(500).json({ message: 'Error al obtener los productos' });
@@ -36,7 +36,10 @@ const crearGasto = async (req, res) => {
             codigo,
             cantidad,
             precio,
-            detalle
+            detalle,
+            comprobante,
+            comprobanteNombre,
+            comprobanteTipo
         }
             = req.body.gasto;
 
@@ -54,12 +57,16 @@ const crearGasto = async (req, res) => {
             cantidad,
             precio,
             detalle,
+            comprobante: comprobante || null,
+            comprobanteNombre: comprobanteNombre || '',
+            comprobanteTipo: comprobanteTipo || '',
             user: req.body.user.uid // ✅ Extraer usuario de `req.user`
         });
 
 
         // ✅ Guardar en MongoDB
         const gastoGuardado = await newGasto.save();
+        await gastoGuardado.populate('user', 'name nombre email');
 
         res.status(201).json({
             gasto: gastoGuardado,
@@ -95,7 +102,10 @@ const actualizarGasto = async (req, res) => {
             codigo,
             cantidad,
             precio,
-            detalle
+            detalle,
+            comprobante,
+            comprobanteNombre,
+            comprobanteTipo
         } = dataGasto;
 
         const camposActualizar = {
@@ -109,13 +119,16 @@ const actualizarGasto = async (req, res) => {
             ...(cantidad !== undefined && { cantidad }),
             ...(precio !== undefined && { precio }),
             ...(detalle !== undefined && { detalle }),
+            ...(comprobante !== undefined && { comprobante }),
+            ...(comprobanteNombre !== undefined && { comprobanteNombre }),
+            ...(comprobanteTipo !== undefined && { comprobanteTipo }),
         };
 
         const gastoActualizado = await Gastos.findByIdAndUpdate(
             gastoId,
             camposActualizar,
             { new: true }
-        );
+        ).populate('user', 'name nombre email');
 
         res.json({
             ok: true,

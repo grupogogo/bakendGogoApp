@@ -1,5 +1,8 @@
 const { response } = require('express');
 const Pedido = require('../models/Pedido');
+const Cliente = require('../models/Clientes');
+const Usuario = require('../models/Usuario');
+const { enviarCorreoNuevoPedido } = require('../helpers/emailService');
 const { default: mongoose } = require('mongoose');
 
 const ItemPedido = mongoose.models.ItemPedido || mongoose.model("ItemPedido", new mongoose.Schema({}, { strict: false }));
@@ -142,7 +145,28 @@ const crearPedido = async (req, res = response) => {
         res.json({
             ok: true,
             msg: 'Pedido guardado exitosamente',
+            pedido: pedidoGuardado
         });
+
+        // Envío asíncrono de notificación por correo (no bloquea la respuesta HTTP)
+        try {
+            const [clienteDb, usuarioDb] = await Promise.all([
+                Cliente.findById(cliente),
+                Usuario.findById(req.uid)
+            ]);
+
+            enviarCorreoNuevoPedido({
+                pedido: pedidoGuardado,
+                cliente: clienteDb,
+                usuario: usuarioDb,
+                listadoPedido,
+                info
+            }).catch(mailError => {
+                console.error('Error al enviar correo del nuevo pedido:', mailError);
+            });
+        } catch (dbError) {
+            console.error('Error al obtener datos para el correo del pedido:', dbError);
+        }
 
     } catch (error) {
         res.json({

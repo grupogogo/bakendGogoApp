@@ -45,6 +45,21 @@ const GastosSchema = Schema({
         type: String,
         require: false
     },
+    comprobante: {
+        type: String,
+        require: false,
+        default: null
+    },
+    comprobanteNombre: {
+        type: String,
+        require: false,
+        default: ''
+    },
+    comprobanteTipo: {
+        type: String,
+        require: false,
+        default: ''
+    }
 });
 GastosSchema.method('toJSON', function () {
     const { __v, _id, ...object } = this.toObject();
