@@ -86,10 +86,8 @@ const crearCliente = async (req, res = response) => {
 
 const actualizarCliente = async (req, res = response) => {
 
-    const clienteid = req.body.cliente_id;
-    const uid = req.body.user._id;
-
-
+    const clienteid = req.params.id_cliente || req.body.cliente_id || req.body._id;
+    const uid = req.uid;
 
     try {
         const cliente = await Cliente.findById(clienteid);
@@ -97,30 +95,69 @@ const actualizarCliente = async (req, res = response) => {
         if (!cliente) {
             return res.status(404).json({
                 ok: false,
-                msg: 'No existe el evento por el id'
-            })
-        }
-        if (cliente.user.toString() !== uid) {
-            return res.status(401).json({
-                ok: false,
-                mgs: "El usuario no tiene privilegios para actualizar esta informacion que no creó"
+                msg: 'No existe el cliente por el id'
             });
         }
 
+        if (cliente.user && cliente.user.toString() !== uid) {
+            return res.status(401).json({
+                ok: false,
+                msg: "El usuario no tiene privilegios para actualizar esta información que no creó"
+            });
+        }
+
+        // Actualizar o crear los precios asociados
+        let precioActualizado = null;
+        const precioData = req.body.precios;
+
+        if (precioData && typeof precioData === 'object') {
+            const { precioKits, precioCirios, precioGuantes } = precioData;
+            const precioId = precioData._id || precioData.Precios_id || cliente.precios;
+
+            if (precioId && mongoose.Types.ObjectId.isValid(precioId)) {
+                precioActualizado = await Precios.findByIdAndUpdate(
+                    precioId,
+                    {
+                        cliente: clienteid,
+                        ...(precioKits !== undefined && { precioKits }),
+                        ...(precioCirios !== undefined && { precioCirios }),
+                        ...(precioGuantes !== undefined && { precioGuantes }),
+                        user: uid
+                    },
+                    { new: true }
+                );
+            }
+
+            // Si no existía o no se encontró por ID, buscar o crear por cliente
+            if (!precioActualizado) {
+                precioActualizado = await Precios.findOneAndUpdate(
+                    { cliente: clienteid },
+                    {
+                        cliente: clienteid,
+                        precioKits: precioKits || {},
+                        precioCirios: precioCirios || {},
+                        precioGuantes: precioGuantes || {},
+                        user: uid
+                    },
+                    { upsert: true, new: true }
+                );
+            }
+        }
+
+        // Extraer precios del body para NO pasar el objeto al modelo Cliente (evita el CastError a ObjectId)
+        const { precios: _precios, cliente_id: _cid, _id: _id, __v: _v, user: _user, ...restoCliente } = req.body;
+
         const nuevoCliente = {
-            ...req.body,
-            user: uid
-        }
+            ...restoCliente,
+            user: cliente.user || uid,
+            precios: precioActualizado ? precioActualizado._id : cliente.precios
+        };
 
-        //console.log(req.body.precios)
-        const nuevoPrecio = {
-            ...req.body.precios,
-            cliente_id: clienteid
-        }
-        const precioid = req.body.precios._id;
-
-        const clienteActualizado = await Cliente.findByIdAndUpdate(clienteid, nuevoCliente, { new: true });
-        const precioActualizado = await Precios.findByIdAndUpdate(precioid, nuevoPrecio, { new: true });
+        const clienteActualizado = await Cliente.findByIdAndUpdate(
+            clienteid,
+            nuevoCliente,
+            { new: true }
+        ).populate('precios').populate('user', 'name');
 
         res.json({
             ok: true,
@@ -128,11 +165,11 @@ const actualizarCliente = async (req, res = response) => {
             precio: precioActualizado
         });
     } catch (error) {
-        console.log(error);
+        console.error('Error al actualizar cliente:', error);
         res.status(500).json({
             ok: false,
-            msg: ('No fue posible actualizar el Cliente')
-        })
+            msg: 'No fue posible actualizar el Cliente'
+        });
     }
 }
 

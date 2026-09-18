@@ -1,4 +1,4 @@
-const nodemailer = require('nodemailer');
+const { Resend } = require('resend');
 
 /**
  * Mapeo de nombres legibles para las categorías de productos
@@ -35,32 +35,6 @@ const buscarNombreCategoria = (categoria) => {
 const formatearMoneda = (valor) => {
     const num = Number(valor) || 0;
     return `$ ${num.toLocaleString('es-CO')}`;
-};
-
-/**
- * Configuración del transportador de nodemailer
- */
-const getTransporter = () => {
-    const user = process.env.EMAIL_USER;
-    const pass = process.env.EMAIL_PASS;
-
-    if (!user || !pass) {
-        return null;
-    }
-
-    if (process.env.SMTP_HOST) {
-        return nodemailer.createTransport({
-            host: process.env.SMTP_HOST,
-            port: Number(process.env.SMTP_PORT) || 587,
-            secure: process.env.SMTP_SECURE === 'true',
-            auth: { user, pass }
-        });
-    }
-
-    return nodemailer.createTransport({
-        service: 'gmail',
-        auth: { user, pass }
-    });
 };
 
 /**
@@ -345,46 +319,56 @@ const generarPlantillaHtmlPedido = ({ pedido, cliente, usuario, listadoPedido, i
 };
 
 /**
- * Función principal para enviar el correo de nuevo pedido
+ * Función principal para enviar el correo de nuevo pedido mediante la API HTTPS de Resend
  */
 const enviarCorreoNuevoPedido = async ({ pedido, cliente, usuario, listadoPedido, info }) => {
     try {
-        const transporter = getTransporter();
+        const apiKey = process.env.RESEND_API_KEY;
         const emailTo = process.env.EMAIL_TO || 'grupocomercialgogo@gmail.com';
+        const emailFrom = process.env.EMAIL_FROM || 'GogoApp - Pedidos <onboarding@resend.dev>';
         const idMostrar = String(pedido?._id || pedido?.pedido_id || 'NUEVO').slice(-8).toUpperCase();
         const clienteNombre = cliente?.nombre || 'Cliente';
         const creadorNombre = usuario?.name || 'Asesor';
 
-        const subject = `ALERTA: 📦 Nuevo pedidito #${idMostrar} | ${clienteNombre} | ${creadorNombre}`;
+        const subject = `ALERTA: 📦 Nuevo pedidito #${idMostrar} | CLIENTE: ${clienteNombre} | ASESOR: ${creadorNombre}`;
 
-        if (!transporter) {
-            console.warn('\x1b[33m%s\x1b[0m', '⚠️  [emailService] Aviso: EMAIL_USER o EMAIL_PASS no están configurados en .env. El pedido se guardó correctamente pero no se envió correo.');
+        if (!apiKey) {
+            console.warn('\x1b[33m%s\x1b[0m', '⚠️  [emailService] RESEND_API_KEY no está configurada. El pedido se guardó correctamente pero no se envió correo.');
             return {
                 ok: false,
-                msg: 'Credenciales de correo no configuradas'
+                msg: 'RESEND_API_KEY no configurada'
             };
         }
 
+        const resend = new Resend(apiKey);
         const htmlContent = generarPlantillaHtmlPedido({ pedido, cliente, usuario, listadoPedido, info });
 
-        const mailOptions = {
-            from: `"GogoApp - Pedidos" <${process.env.EMAIL_USER}>`,
+        const { data, error } = await resend.emails.send({
+            from: emailFrom,
             to: emailTo,
             subject: subject,
             html: htmlContent
-        };
+        });
 
-        const infoEnvio = await transporter.sendMail(mailOptions);
-        console.log('\x1b[32m%s\x1b[0m', `✅ [emailService] Correo enviado exitosamente a ${emailTo}. Asunto: "${subject}" (ID: ${infoEnvio.messageId})`);
+        if (error) {
+            console.error('\x1b[31m%s\x1b[0m', '❌ [emailService] Error al enviar correo:\n', error);
+            return {
+                ok: false,
+                error
+            };
+        }
+
+        console.log('\x1b[32m%s\x1b[0m', `✅ [emailService] Correo enviado exitosamente a ${emailTo}`);
+        console.log('\x1b[36m%s\x1b[0m', `📧 [emailService] Message ID: ${data?.id}`);
         return {
             ok: true,
-            messageId: infoEnvio.messageId
+            messageId: data?.id
         };
     } catch (error) {
-        console.error('❌ [emailService] Error al enviar correo de nuevo pedido:', error);
+        console.error('\x1b[31m%s\x1b[0m', '❌ [emailService] Error al enviar correo:\n', error.message || error);
         return {
             ok: false,
-            error: error.message
+            error: error.message || error
         };
     }
 };
