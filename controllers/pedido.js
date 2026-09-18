@@ -227,38 +227,99 @@ const eliminarPedido = async (req, res = response) => {
 const editarEstadoPedido = async (req, res = response) => {
     try {
         const pedidoId = req.params.id_pedido || req.body.pedido_id || req.body._id;
-        const fechaActual = new Date().toISOString();
 
+        if (!pedidoId || !mongoose.Types.ObjectId.isValid(pedidoId)) {
+            return res.status(400).json({
+                ok: false,
+                msg: 'ID de pedido no válido'
+            });
+        }
+
+        const pedidoExistente = await Pedido.findById(pedidoId);
+        if (!pedidoExistente) {
+            return res.status(404).json({
+                ok: false,
+                msg: 'No existe el pedido por el ID especificado'
+            });
+        }
+
+        const fechaActual = new Date().toISOString();
+        const nuevoEstado = req.body.estado || pedidoExistente.estado;
+
+        // Construir datos de actualización de forma limpia y segura (evitando objetos poblados o conflictos)
         const updateData = {
-            ...req.body,
+            estado: nuevoEstado,
             fechaModificacionEstado: req.body.fechaModificacionEstado || fechaActual,
-            userEdit: req.uid || req.body.userEdit || ''
+            userEdit: req.body.userEdit || req.uid || ''
         };
 
-        if (req.body.estado === 'pagado') {
+        if (nuevoEstado === 'pagado') {
             updateData.fechaPagado = req.body.fechaPagado || fechaActual;
         }
 
+        if (req.body.numeroGuia !== undefined) {
+            updateData.numeroGuia = req.body.numeroGuia;
+        }
+
+        if (req.body.detalleEstado !== undefined) {
+            updateData.detalleEstado = req.body.detalleEstado;
+        }
+
+        if (req.body.detalleGeneral !== undefined) {
+            updateData.detalleGeneral = req.body.detalleGeneral;
+        }
+
+        if (req.body.tipoDespacho !== undefined) {
+            updateData.tipoDespacho = req.body.tipoDespacho;
+        }
+
+        if (req.body.formaPago !== undefined) {
+            updateData.formaPago = req.body.formaPago;
+        }
+
+        if (req.body.costoEnvio !== undefined) {
+            updateData.costoEnvio = req.body.costoEnvio;
+        }
+
+        // Si se envió cliente como objeto poblado o ID, asegurar que quede como ObjectId
+        if (req.body.cliente) {
+            const cid = req.body.cliente._id || req.body.cliente.cliente_id || req.body.cliente;
+            if (typeof cid === 'string' && mongoose.Types.ObjectId.isValid(cid)) {
+                updateData.cliente = cid;
+            }
+        }
+
+        // Si se envió user como objeto poblado o ID, asegurar que quede como ObjectId
+        if (req.body.user) {
+            const uid = req.body.user._id || req.body.user.uid || req.body.user;
+            if (typeof uid === 'string' && mongoose.Types.ObjectId.isValid(uid)) {
+                updateData.user = uid;
+            }
+        }
+
         const entradaHistorial = {
-            estado: req.body.estado,
+            estado: nuevoEstado,
             fecha: fechaActual,
-            userEdit: req.uid || req.body.userEdit || ''
+            userEdit: req.body.userEdit || req.uid || ''
         };
 
-        const pedido = await Pedido.findByIdAndUpdate(
+        const pedidoActualizado = await Pedido.findByIdAndUpdate(
             pedidoId,
             {
                 $set: updateData,
                 $push: { historialEstados: entradaHistorial }
             },
             { new: true }
-        );
+        )
+            .populate('user', 'name email telefono numIdentificacion')
+            .populate({ path: 'cliente', select: 'nombre ciudad distribuidor direccion telefono nitCC detalle' })
+            .populate({ path: 'itemPedido' });
 
         res.json({
             ok: true,
             msg: 'Estado de pedido actualizado',
-            pedido,
-            estado: req.body.estado,
+            pedido: pedidoActualizado,
+            estado: nuevoEstado,
         });
     } catch (error) {
         console.error('Error al editar estado pedido:', error);
