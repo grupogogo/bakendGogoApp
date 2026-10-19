@@ -1,0 +1,21 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" width="120" height="120">
+  <rect width="100" height="100" rx="16" fill="#F8FAFC"/>
+  <rect x="2" y="2" width="96" height="96" rx="14" fill="none" stroke="#E2E8F0" stroke-width="2"/>
+  <!-- Mitón -->
+  <g fill="#475569" stroke="#334155" stroke-width="1.2" stroke-linejoin="round" stroke-linecap="round">
+    <!-- Puño con textura de líneas -->
+    <rect x="34" y="72" width="34" height="12" rx="3" fill="#334155"/>
+    <line x1="42" y1="74" x2="42" y2="82" stroke="#64748B" stroke-width="1.5"/>
+    <line x1="51" y1="74" x2="51" y2="82" stroke="#64748B" stroke-width="1.5"/>
+    <line x1="60" y1="74" x2="60" y2="82" stroke="#64748B" stroke-width="1.5"/>
+    <!-- Cuerpo del mitón y pulgar -->
+    <path d="M 37 72 
+             C 35 62, 33 55, 23 51
+             C 18 49, 18 42, 23 39
+             C 28 36, 33 40, 36 46
+             C 37 36, 39 20, 52 20
+             C 65 20, 68 32, 68 46
+             L 68 72
+             Z"/>
+  </g>
+</svg>

@@ -1,3 +1,5 @@
+const fs = require('fs');
+const path = require('path');
 const { Resend } = require('resend');
 
 /**
@@ -12,6 +14,7 @@ const buscarNombreCategoria = (categoria) => {
         case 'KCE': return 'KIT COMUNIÓN ECONÓMICO';
         case 'KB': return 'KIT DE BAUTIZO';
         case 'CC': return 'CIRIO DE COMUNIÓN';
+        case 'CCON': return 'CIRIO DE CONFIRMACIÓN';
         case 'CB': return 'CIRIO DE BAUTIZO';
         case 'BLANCOS':
         case 'GUANTES-BLANCOS':
@@ -30,6 +33,22 @@ const buscarNombreCategoria = (categoria) => {
 };
 
 /**
+ * Mapeo de carpeta de imágenes según categoría y género
+ */
+const obtenerCarpetaImagen = (categoria, genero) => {
+    const cat = String(categoria || '').toUpperCase().trim();
+    if (cat === 'KCE') return 'economico-unisex';
+    if (cat === 'CCON') return 'confirmacion';
+    if (['KCG', 'KCP', 'CC'].includes(cat)) {
+        return (genero === 0 || genero === '0') ? 'comunion-nino' : 'comunion-nina';
+    }
+    if (['KB', 'CB'].includes(cat)) {
+        return (genero === 0 || genero === '0') ? 'bautizo-nino' : 'bautizo-nina';
+    }
+    return null;
+};
+
+/**
  * Formateo de valores numéricos a pesos colombianos
  */
 const formatearMoneda = (valor) => {
@@ -38,7 +57,8 @@ const formatearMoneda = (valor) => {
 };
 
 /**
- * Genera el cuerpo HTML completo del correo electrónico con diseño moderno y tablas detalladas
+ * Genera el cuerpo HTML completo del correo electrónico con diseño moderno, tablas detalladas,
+ * soporte de miniaturas de producto y visualización clara de tallas y observaciones.
  */
 const generarPlantillaHtmlPedido = ({ pedido, cliente, usuario, listadoPedido, info }) => {
     const idMostrar = String(pedido?._id || pedido?.pedido_id || 'NUEVO').slice(-8).toUpperCase();
@@ -56,8 +76,22 @@ const generarPlantillaHtmlPedido = ({ pedido, cliente, usuario, listadoPedido, i
     const tipoDespacho = info?.tipoDespacho || pedido?.tipoDespacho || 'Punto';
     const formaPago = info?.formaPago || pedido?.formaPago || 'Crédito';
     const costoEnvio = Number(info?.costoEnvio || pedido?.costoEnvio) || 0;
-    const detalleGeneral = info?.detalleGeneral || pedido?.detalleGeneral || '';
-    const detalleEstado = info?.detalleEstado || pedido?.detalleEstado || '';
+
+    // Detalle General / Observaciones (captura robusta desde cualquier propiedad disponible)
+    const detalleGeneral = String(
+        info?.detalleGeneral || 
+        info?.detalle || 
+        pedido?.detalleGeneral || 
+        pedido?.detalle || 
+        cliente?.detalle || 
+        ''
+    ).trim();
+
+    const detalleEstado = String(
+        info?.detalleEstado || 
+        pedido?.detalleEstado || 
+        ''
+    ).trim();
 
     // Estructura de items
     const rawItems = listadoPedido || (pedido?.itemPedido?.[0]?.itemPedido) || {};
@@ -65,6 +99,10 @@ const generarPlantillaHtmlPedido = ({ pedido, cliente, usuario, listadoPedido, i
     let totalProductos = 0;
     let subtotalGeneral = 0;
     let totalCategorias = 0;
+
+    // Adjuntos inline de imágenes para Nodemailer / Resend (CID)
+    const attachments = [];
+    const attachmentsMap = new Map();
 
     // Procesar categorías y filas
     let bloquesCategoriasHtml = '';
@@ -75,7 +113,7 @@ const generarPlantillaHtmlPedido = ({ pedido, cliente, usuario, listadoPedido, i
 
         totalCategorias += 1;
         const nombreCat = buscarNombreCategoria(categoriaKey);
-        const detalleCat = catData?.detalleGeneral || '';
+        const detalleCat = String(catData?.detalleGeneral || catData?.detalle || '').trim();
 
         let subtotalCat = 0;
         let cantCat = 0;
@@ -91,34 +129,151 @@ const generarPlantillaHtmlPedido = ({ pedido, cliente, usuario, listadoPedido, i
 
             // Identificación y descripción del producto
             const inputStr = String(item?.nombreInput || '');
-            let descripcion = '';
+            const lowerInput = inputStr.toLowerCase();
+            const prodStr = String(item?.producto || '');
+            const lowerProd = prodStr.toLowerCase();
 
-            if (categoriaKey === 'GUANTES') {
-                descripcion = item?.producto || inputStr.split('-').pop() || 'Guantes';
-            } else if (categoriaKey === 'OTR') {
-                descripcion = item?.producto || 'Accesorio / Producto';
-            } else if (inputStr.includes('inputSurtidoNino') || inputStr.endsWith('O')) {
-                descripcion = 'Surtido - Niño';
-            } else if (inputStr.includes('inputSurtidoNina') || inputStr.endsWith('A')) {
-                descripcion = 'Surtido - Niña';
-            } else {
-                const numMotivo = inputStr.split('-')[1] || item?.motivo || '1';
-                const generoStr = (item?.genero === '0' || item?.genero === 0) ? ' (Niño)' : (item?.genero === '1' || item?.genero === 1) ? ' (Niña)' : '';
-                descripcion = `Motivo #${numMotivo}${generoStr}`;
+            // Detección de surtido
+            const esSurtidoNino = lowerInput.includes('inputsurtidonino') || 
+                                  (lowerInput.includes('surtid') && (lowerInput.endsWith('o') || lowerProd.includes('niño') || lowerProd.includes('nino'))) ||
+                                  (lowerProd.includes('surtid') && (lowerProd.includes('niño') || lowerProd.includes('nino')));
+
+            const esSurtidoNina = lowerInput.includes('inputsurtidonina') || 
+                                  (lowerInput.includes('surtid') && (lowerInput.endsWith('a') || lowerProd.includes('niña') || lowerProd.includes('nina'))) ||
+                                  (lowerProd.includes('surtid') && (lowerProd.includes('niña') || lowerProd.includes('nina')));
+
+            let descripcion = '';
+            let motivoNum = null;
+            let genero = null;
+
+            // Determinar género (0: Niño, 1: Niña)
+            if (item?.genero !== undefined && item?.genero !== null && item?.genero !== '') {
+                const g = String(item.genero).trim().toLowerCase();
+                if (g === '0' || g === 'o' || g.includes('nino') || g.includes('niño')) genero = 0;
+                else if (g === '1' || g === 'a' || g.includes('nina') || g.includes('niña')) genero = 1;
             }
 
-            // Talla si aplica
-            const talla = item?.talla || (inputStr.includes('Talla') ? inputStr : (categoriaKey === 'KCG' || categoriaKey === 'GUANTES' ? (item?.talla || '-') : '-'));
+            if (genero === null) {
+                if (lowerInput.includes('nino') || lowerInput.includes('niño') || lowerInput.includes('inputsurtidonino')) genero = 0;
+                else if (lowerInput.includes('nina') || lowerInput.includes('niña') || lowerInput.includes('inputsurtidonina')) genero = 1;
+                else if (inputStr.split('-')[1]?.includes('O')) genero = 0;
+                else if (inputStr.split('-')[1]?.includes('A')) genero = 1;
+                else if (lowerProd.includes('niño') || lowerProd.includes('nino')) genero = 0;
+                else if (lowerProd.includes('niña') || lowerProd.includes('nina')) genero = 1;
+                else genero = 0;
+            }
+
+            // Determinar descripción del producto
+            if (categoriaKey === 'GUANTES') {
+                descripcion = prodStr || inputStr.split('-').pop() || 'Guantes';
+            } else if (categoriaKey === 'OTR') {
+                descripcion = prodStr || 'Accesorio / Producto';
+            } else if (esSurtidoNino) {
+                descripcion = 'Surtido - Niño';
+            } else if (esSurtidoNina) {
+                descripcion = 'Surtido - Niña';
+            } else {
+                // Extracción de motivo
+                if (item?.motivo) {
+                    motivoNum = String(item.motivo).trim();
+                } else {
+                    const parts = inputStr.split('-');
+                    if (parts.length > 1) {
+                        const match = parts[1].match(/^\d+/);
+                        if (match) {
+                            motivoNum = match[0];
+                        } else if (parts[1].length > 0) {
+                            motivoNum = parts[1].charAt(0);
+                        }
+                    }
+                }
+                if (!motivoNum) motivoNum = '1';
+
+                const usaLetras = ['KCG', 'KCP', 'CC', 'KCE', 'KB', 'CB', 'CCON'].includes(categoriaKey.toUpperCase());
+                const num = parseInt(motivoNum, 10);
+                const etiquetaMotivo = (usaLetras && !isNaN(num) && num >= 1 && num <= 26) ? String.fromCharCode(64 + num) : `#${motivoNum}`;
+                const generoStr = (categoriaKey === 'KCE' || categoriaKey === 'CCON') ? '' : (genero === 0 ? ' (Niño)' : ' (Niña)');
+                descripcion = usaLetras ? `Modelo ${etiquetaMotivo}${generoStr}` : `Motivo #${motivoNum}${generoStr}`;
+            }
+
+            // Normalización de Talla: si es 't0' o 'T0' significa 'SURTIDA'
+            let tallaRaw = item?.talla !== undefined && item?.talla !== null ? String(item.talla).trim() : '';
+            if (!tallaRaw || tallaRaw === '' || tallaRaw === '-') {
+                if (lowerInput.includes('t0')) {
+                    tallaRaw = 't0';
+                } else if (inputStr.includes('Talla')) {
+                    tallaRaw = inputStr;
+                } else if (categoriaKey === 'KCG' || categoriaKey === 'GUANTES') {
+                    tallaRaw = item?.talla || '-';
+                } else {
+                    tallaRaw = '-';
+                }
+            }
+
+            let tallaDisplay = tallaRaw;
+            let esTallaSurtida = false;
+            if (tallaRaw.toLowerCase() === 't0' || tallaRaw.toLowerCase() === 'surtida') {
+                tallaDisplay = 'SURTIDA';
+                esTallaSurtida = true;
+            } else if (!tallaRaw || tallaRaw === 'null' || tallaRaw === 'undefined') {
+                tallaDisplay = '-';
+            }
+
+            const tallaHtml = esTallaSurtida
+                ? `<span style="background-color: #e0f2fe; color: #0369a1; border: 1px solid #bae6fd; padding: 2px 7px; border-radius: 4px; font-weight: 700; font-size: 11px; letter-spacing: 0.5px; display: inline-block;">SURTIDA</span>`
+                : (tallaDisplay === '-' ? `<span style="color: #94a3b8;">-</span>` : `<span style="font-weight: 600; color: #334155;">${tallaDisplay}</span>`);
+
+            // Resolución de Imagen de Producto (Inline CID attachment)
+            let imgCid = null;
+            const esSurtido = esSurtidoNino || esSurtidoNina || lowerProd.includes('surtido');
+            if (!esSurtido && motivoNum && ['KCG', 'KCP', 'KCE', 'KB', 'CC', 'CB', 'CCON'].includes(categoriaKey)) {
+                const carpeta = obtenerCarpetaImagen(categoriaKey, genero);
+                if (carpeta) {
+                    const imageDir = path.join(__dirname, '../public/images', carpeta);
+                    const imagePath = path.join(imageDir, `${motivoNum}.webp`);
+                    if (fs.existsSync(imagePath)) {
+                        const safeKey = `${carpeta}_${motivoNum}`.replace(/[^a-zA-Z0-9_]/g, '_');
+                        imgCid = `img_${safeKey}`;
+                        if (!attachmentsMap.has(imgCid)) {
+                            attachmentsMap.set(imgCid, true);
+                            try {
+                                const contentBase64 = fs.readFileSync(imagePath).toString('base64');
+                                attachments.push({
+                                    filename: `${carpeta}-${motivoNum}.webp`,
+                                    content: contentBase64,
+                                    contentType: 'image/webp',
+                                    contentId: imgCid
+                                });
+                            } catch (readErr) {
+                                console.warn(`[emailService] No se pudo leer imagen: ${imagePath}`, readErr.message);
+                            }
+                        }
+                    }
+                }
+            }
 
             const bgFila = idx % 2 === 0 ? '#ffffff' : '#f8fafc';
 
             filasHtml += `
                 <tr style="background-color: ${bgFila};">
                     <td style="padding: 10px 12px; border-bottom: 1px solid #e2e8f0; font-size: 13px; color: #1e293b; font-weight: 500;">
-                        ${descripcion}
+                        <table cellpadding="0" cellspacing="0" border="0" style="border-collapse: collapse;">
+                            <tr>
+                                ${imgCid ? `
+                                <td style="padding-right: 12px; vertical-align: middle; width: 48px;">
+                                    <img src="cid:${imgCid}" width="48" height="135" alt="Motivo #${motivoNum}" style="display: block; width: 48px; height: 135px; border-radius: 6px; border: 1.5px solid #cbd5e1; object-fit: contain; background: #ffffff; box-shadow: 0 1px 3px rgba(0,0,0,0.06);" />
+                                </td>
+                                ` : ''}
+                                <td style="vertical-align: middle;">
+                                    <div style="font-size: 13px; color: #1e293b; font-weight: 600;">
+                                        ${descripcion}
+                                    </div>
+                                </td>
+                            </tr>
+                        </table>
                     </td>
-                    <td style="padding: 10px 12px; border-bottom: 1px solid #e2e8f0; font-size: 13px; color: #475569; text-align: center;">
-                        ${talla}
+                    <td style="padding: 10px 12px; border-bottom: 1px solid #e2e8f0; font-size: 13px; text-align: center;">
+                        ${tallaHtml}
                     </td>
                     <td style="padding: 10px 12px; border-bottom: 1px solid #e2e8f0; font-size: 13px; color: #0f172a; font-weight: 700; text-align: center;">
                         ${cant}
@@ -138,20 +293,25 @@ const generarPlantillaHtmlPedido = ({ pedido, cliente, usuario, listadoPedido, i
 
         bloquesCategoriasHtml += `
             <div style="margin-bottom: 22px; border: 1px solid #e2e8f0; border-radius: 8px; overflow: hidden; background: #ffffff;">
-                <div style="background-color: #f1f5f9; padding: 10px 14px; border-bottom: 1px solid #cbd5e1; display: flex; justify-content: space-between; align-items: center;">
-                    <div>
-                        <span style="font-size: 13px; font-weight: 800; color: #0f172a; letter-spacing: 0.5px;">📁 ${nombreCat}</span>
-                        ${detalleCat ? `<div style="font-size: 11px; color: #64748b; font-style: italic; margin-top: 2px;">Nota: ${detalleCat}</div>` : ''}
-                    </div>
-                    <div style="font-size: 12px; font-weight: 700; color: #0284c7; text-align: right;">
-                        Subtotal: ${formatearMoneda(subtotalCat)} <span style="font-weight: 400; color: #64748b;">(${cantCat} und)</span>
-                    </div>
+                <div style="background-color: #f1f5f9; padding: 10px 14px; border-bottom: 1px solid #cbd5e1;">
+                    <table width="100%" cellpadding="0" cellspacing="0">
+                        <tr>
+                            <td valign="middle">
+                                <span style="font-size: 13px; font-weight: 800; color: #0f172a; letter-spacing: 0.5px;">📁 ${nombreCat}</span>
+                                ${detalleCat ? `<div style="font-size: 11px; color: #64748b; font-style: italic; margin-top: 2px;">Nota: ${detalleCat}</div>` : ''}
+                            </td>
+                            <td valign="middle" style="text-align: right; white-space: nowrap;">
+                                <span style="font-size: 12px; font-weight: 700; color: #0284c7;">Subtotal: ${formatearMoneda(subtotalCat)}</span>
+                                <span style="font-size: 11px; font-weight: 400; color: #64748b;"> (${cantCat} und)</span>
+                            </td>
+                        </tr>
+                    </table>
                 </div>
                 <table width="100%" cellpadding="0" cellspacing="0" style="border-collapse: collapse;">
                     <thead>
                         <tr style="background-color: #f8fafc;">
                             <th style="padding: 8px 12px; text-align: left; font-size: 11px; color: #64748b; text-transform: uppercase; border-bottom: 1px solid #e2e8f0;">Producto / Motivo</th>
-                            <th style="padding: 8px 12px; text-align: center; font-size: 11px; color: #64748b; text-transform: uppercase; border-bottom: 1px solid #e2e8f0; width: 80px;">Talla</th>
+                            <th style="padding: 8px 12px; text-align: center; font-size: 11px; color: #64748b; text-transform: uppercase; border-bottom: 1px solid #e2e8f0; width: 90px;">Talla</th>
                             <th style="padding: 8px 12px; text-align: center; font-size: 11px; color: #64748b; text-transform: uppercase; border-bottom: 1px solid #e2e8f0; width: 65px;">Cant.</th>
                             <th style="padding: 8px 12px; text-align: right; font-size: 11px; color: #64748b; text-transform: uppercase; border-bottom: 1px solid #e2e8f0; width: 110px;">Precio Unit.</th>
                             <th style="padding: 8px 12px; text-align: right; font-size: 11px; color: #64748b; text-transform: uppercase; border-bottom: 1px solid #e2e8f0; width: 115px;">Subtotal</th>
@@ -167,7 +327,7 @@ const generarPlantillaHtmlPedido = ({ pedido, cliente, usuario, listadoPedido, i
 
     const granTotal = subtotalGeneral + costoEnvio;
 
-    return `
+    const html = `
 <!DOCTYPE html>
 <html lang="es">
 <head>
@@ -260,14 +420,22 @@ const generarPlantillaHtmlPedido = ({ pedido, cliente, usuario, listadoPedido, i
                 </tr>
             </table>
 
-            <!-- Notas u Observaciones si existen -->
+            <!-- Notas u Observaciones del Pedido (Detalle General) -->
             ${(detalleGeneral || detalleEstado) ? `
-                <div style="background-color: #fffbeb; border: 1px solid #fde68a; border-left: 4px solid #f59e0b; border-radius: 6px; padding: 14px; margin-bottom: 24px;">
-                    <div style="font-size: 12px; font-weight: 800; color: #b45309; text-transform: uppercase; margin-bottom: 4px;">
-                        📝 Observaciones del Pedido
+                <div style="background-color: #fffbeb; border: 1.5px solid #fde68a; border-left: 5px solid #f59e0b; border-radius: 8px; padding: 14px 18px; margin-bottom: 24px; box-shadow: 0 1px 3px rgba(245, 158, 11, 0.08);">
+                    <div style="font-size: 12px; font-weight: 800; color: #b45309; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 6px;">
+                        📝 OBSERVACIONES DEL PEDIDO
                     </div>
-                    ${detalleGeneral ? `<div style="font-size: 13px; color: #78350f; margin-bottom: 4px;"><strong>Detalle General:</strong> ${detalleGeneral}</div>` : ''}
-                    ${detalleEstado ? `<div style="font-size: 13px; color: #78350f;"><strong>Novedad:</strong> ${detalleEstado}</div>` : ''}
+                    ${detalleGeneral ? `
+                        <div style="font-size: 13px; color: #78350f; line-height: 1.5;">
+                            <strong style="color: #92400e;">Detalle General:</strong> ${detalleGeneral}
+                        </div>
+                    ` : ''}
+                    ${detalleEstado ? `
+                        <div style="font-size: 13px; color: #78350f; margin-top: 4px; line-height: 1.5;">
+                            <strong style="color: #92400e;">Novedad / Estado:</strong> ${detalleEstado}
+                        </div>
+                    ` : ''}
                 </div>
             ` : ''}
 
@@ -305,7 +473,7 @@ const generarPlantillaHtmlPedido = ({ pedido, cliente, usuario, listadoPedido, i
         <!-- Footer -->
         <div style="background-color: #f8fafc; border-top: 1px solid #e2e8f0; padding: 18px 24px; text-align: center;">
             <p style="margin: 0; font-size: 12px; color: #64748b;">
-                Este correo fue generado automáticamente por <strong>GoG App</strong> al crear un nuevo pedido.
+                Este correo fue generado automáticamente por <strong>GogoApp</strong> al crear un nuevo pedido.
             </p>
             <p style="margin: 4px 0 0 0; font-size: 11px; color: #94a3b8;">
                 Grupo Comercial Gogo • ${new Date().getFullYear()}
@@ -316,6 +484,14 @@ const generarPlantillaHtmlPedido = ({ pedido, cliente, usuario, listadoPedido, i
 </body>
 </html>
     `;
+
+    return {
+        html,
+        attachments,
+        toString() {
+            return this.html;
+        }
+    };
 };
 
 /**
@@ -341,14 +517,20 @@ const enviarCorreoNuevoPedido = async ({ pedido, cliente, usuario, listadoPedido
         }
 
         const resend = new Resend(apiKey);
-        const htmlContent = generarPlantillaHtmlPedido({ pedido, cliente, usuario, listadoPedido, info });
+        const { html, attachments } = generarPlantillaHtmlPedido({ pedido, cliente, usuario, listadoPedido, info });
 
-        const { data, error } = await resend.emails.send({
+        const emailPayload = {
             from: emailFrom,
             to: emailTo,
             subject: subject,
-            html: htmlContent
-        });
+            html: html
+        };
+
+        if (attachments && attachments.length > 0) {
+            emailPayload.attachments = attachments;
+        }
+
+        const { data, error } = await resend.emails.send(emailPayload);
 
         if (error) {
             console.error('\x1b[31m%s\x1b[0m', '❌ [emailService] Error al enviar correo:\n', error);
@@ -358,7 +540,7 @@ const enviarCorreoNuevoPedido = async ({ pedido, cliente, usuario, listadoPedido
             };
         }
 
-        console.log('\x1b[32m%s\x1b[0m', `✅ [emailService] Correo enviado exitosamente a ${emailTo}`);
+        console.log('\x1b[32m%s\x1b[0m', `✅ [emailService] Correo enviado exitosamente a ${emailTo} (${attachments.length} imágenes adjuntas)`);
         console.log('\x1b[36m%s\x1b[0m', `📧 [emailService] Message ID: ${data?.id}`);
         return {
             ok: true,
@@ -377,5 +559,6 @@ module.exports = {
     enviarCorreoNuevoPedido,
     generarPlantillaHtmlPedido,
     buscarNombreCategoria,
+    obtenerCarpetaImagen,
     formatearMoneda
 };

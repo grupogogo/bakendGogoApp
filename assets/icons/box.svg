@@ -1,0 +1,16 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" width="120" height="120">
+  <rect width="100" height="100" rx="16" fill="#F8FAFC"/>
+  <rect x="2" y="2" width="96" height="96" rx="14" fill="none" stroke="#E2E8F0" stroke-width="2"/>
+  <!-- Caja isométrica con cinta -->
+  <g stroke="#334155" stroke-width="1.5" stroke-linejoin="round" stroke-linecap="round">
+    <!-- Cara superior -->
+    <polygon points="50,22 78,35 50,48 22,35" fill="#94A3B8"/>
+    <!-- Cara izquierda -->
+    <polygon points="22,35 50,48 50,78 22,65" fill="#64748B"/>
+    <!-- Cara derecha -->
+    <polygon points="50,48 78,35 78,65 50,78" fill="#475569"/>
+    <!-- Cinta de embalaje -->
+    <polygon points="45,24.5 55,29 55,45.5 45,41" fill="#38BDF8" opacity="0.9"/>
+    <polygon points="45,41 55,45.5 55,75.5 45,71" fill="#0284C7" opacity="0.9"/>
+  </g>
+</svg>

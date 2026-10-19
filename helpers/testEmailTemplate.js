@@ -5,86 +5,100 @@ const { generarPlantillaHtmlPedido } = require('./emailService');
 const mockData = {
     pedido: {
         _id: '67c1e5a8f09b12a3456789ab',
-        fechaCreacion: '11 de septiembre de 2026 21:15'
+        fechaCreacion: '17 de octubre de 2026 11:30'
     },
     cliente: {
-        nombre: 'Librería y Distribuidora Santa María',
-        nitCC: '900.123.456-7',
-        ciudad: 'Medellín',
-        direccion: 'Calle 50 # 45-23 Centro',
-        telefono: '310 987 6543',
+        nombre: 'Elvia Lozano',
+        nitCC: '22392865',
+        ciudad: 'Barranquilla',
+        direccion: 'Carrera 9f # 40 - 17 frente al parque botanico',
+        telefono: '3116532818',
         distribuidor: true
     },
     usuario: {
-        name: 'Leonardo Asesor',
-        email: 'asesor.leonardo@gogo.com'
+        name: 'Leonardo Gómez',
+        email: 'Leonardo@gmail.com'
     },
     info: {
-        fechaActual: '11 de septiembre de 2026 21:15',
-        costoEnvio: 18000,
-        tipoDespacho: 'Inter Rapidísimo',
-        formaPago: 'Crédito a 30 días',
-        detalleGeneral: 'Por favor despachar en horas de la mañana. Empacar con protección adicional para cirios.',
+        fechaActual: '17 de octubre de 2026 11:30',
+        costoEnvio: 0,
+        tipoDespacho: 'Envío',
+        formaPago: 'Crédito',
+        detalleGeneral: 'Sólo envío al cobro. Despachar urgente por favor.',
         detalleEstado: ''
     },
     listadoPedido: {
-        KCG: {
-            detalleGeneral: 'Kits para ceremonia especial',
+        KCE: {
+            detalleGeneral: 'Kits económicos para evento',
             pedido: [
                 {
-                    nombreInput: 'motivo-3',
-                    motivo: '3',
+                    nombreInput: 'KCE-6t0',
+                    motivo: '6',
                     genero: '0',
-                    talla: 'Talla 8',
-                    cantidad: 15,
-                    precioUnitario: 45000
+                    talla: 't0',
+                    cantidad: 6,
+                    precioUnitario: 12500
                 },
                 {
-                    nombreInput: 'motivo-5',
+                    nombreInput: 'KCE-3t0',
+                    motivo: '3',
+                    genero: '0',
+                    talla: 't0',
+                    cantidad: 3,
+                    precioUnitario: 12500
+                }
+            ]
+        },
+        CB: {
+            detalleGeneral: 'Cirios bautizo decorados',
+            pedido: [
+                {
+                    nombreInput: 'CB-6O',
+                    motivo: '6',
+                    genero: '0',
+                    talla: 't0',
+                    cantidad: 5,
+                    precioUnitario: 12000
+                },
+                {
+                    nombreInput: 'CB-5A',
                     motivo: '5',
                     genero: '1',
-                    talla: 'Talla 10',
-                    cantidad: 10,
-                    precioUnitario: 45000
-                },
+                    talla: 't0',
+                    cantidad: 5,
+                    precioUnitario: 12000
+                }
+            ]
+        },
+        KCG: {
+            detalleGeneral: 'Entre los niños 4 kits niño talla 9',
+            pedido: [
                 {
                     nombreInput: 'inputSurtidoNino',
                     motivo: '',
-                    talla: 'Talla 6',
-                    cantidad: 5,
-                    precioUnitario: 43000
-                }
-            ]
-        },
-        CC: {
-            detalleGeneral: 'Cirios decorados',
-            pedido: [
-                {
-                    nombreInput: 'motivo-2',
-                    motivo: '2',
                     genero: '0',
-                    talla: '-',
+                    talla: 't0',
                     cantidad: 20,
-                    precioUnitario: 18000
+                    precioUnitario: 25500
                 },
                 {
-                    nombreInput: 'motivo-4',
-                    motivo: '4',
+                    nombreInput: 'inputSurtidoNina',
+                    motivo: '',
                     genero: '1',
-                    talla: '-',
+                    talla: 't0',
                     cantidad: 20,
-                    precioUnitario: 18000
+                    precioUnitario: 25500
                 }
             ]
         },
-        GUANTES: {
-            detalleGeneral: 'Guantes bordados',
+        OTR: {
+            detalleGeneral: '6 unidades con cruz y 6 unidades con paloma',
             pedido: [
                 {
-                    producto: 'Guante Blanco Bordado Cáliz',
-                    nombreInput: 'Talla 8',
-                    talla: 'Talla 8',
-                    cantidad: 25,
+                    producto: 'Cirio decorado de confirmación',
+                    nombreInput: '',
+                    talla: '-',
+                    cantidad: 12,
                     precioUnitario: 12000
                 }
             ]
@@ -93,11 +107,15 @@ const mockData = {
 };
 
 try {
-    const html = generarPlantillaHtmlPedido(mockData);
+    const { html, attachments } = generarPlantillaHtmlPedido(mockData);
     const outputPath = path.join(__dirname, '../test-preview-pedido.html');
     fs.writeFileSync(outputPath, html, 'utf-8');
     console.log('✅ Plantilla HTML generada exitosamente en:', outputPath);
-    console.log(`Asunto esperado: "📦 Nuevo pedido #${String(mockData.pedido._id).slice(-8).toUpperCase()} | ${mockData.cliente.nombre} | ${mockData.usuario.name}"`);
+    console.log(`📎 Total imágenes adjuntas generadas (CID): ${attachments.length}`);
+    attachments.forEach((att, i) => {
+        console.log(`   [${i + 1}] cid: ${att.contentId} -> ${att.filename} (${att.contentType})`);
+    });
+    console.log(`Asunto esperado: "ALERTA: 📦 Nuevo pedidito #${String(mockData.pedido._id).slice(-8).toUpperCase()} | CLIENTE: ${mockData.cliente.nombre} | ASESOR: ${mockData.usuario.name}"`);
 } catch (err) {
     console.error('❌ Error al generar la plantilla HTML:', err);
     process.exit(1);

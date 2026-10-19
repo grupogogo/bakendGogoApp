@@ -3,6 +3,7 @@ const Pedido = require('../models/Pedido');
 const Cliente = require('../models/Clientes');
 const Usuario = require('../models/Usuario');
 const { enviarCorreoNuevoPedido } = require('../helpers/emailService');
+const { enviarNotificacionTelegramPedido } = require('../helpers/telegramService');
 const { default: mongoose } = require('mongoose');
 
 const ItemPedido = mongoose.models.ItemPedido || mongoose.model("ItemPedido", new mongoose.Schema({}, { strict: false }));
@@ -113,9 +114,16 @@ const crearPedido = async (req, res = response) => {
         formaPago,
         estado,
         detalleEstado,
-        detalleGeneral,
         numeroGuia
-    } = info;
+    } = info || {};
+
+    const detalleGeneralTexto = String(
+        info?.detalleGeneral || 
+        info?.detalle || 
+        req.body?.detalleGeneral || 
+        req.body?.detalle || 
+        ''
+    ).trim();
 
     const pedido = new Pedido({
         fechaCreacion: fechaActual,
@@ -124,7 +132,7 @@ const crearPedido = async (req, res = response) => {
         formaPago,
         estado,
         detalleEstado,
-        detalleGeneral,
+        detalleGeneral: detalleGeneralTexto,
         numeroGuia,
         userEdit: '',
         user: req.uid,
@@ -155,17 +163,28 @@ const crearPedido = async (req, res = response) => {
                 Usuario.findById(req.uid)
             ]);
 
-            enviarCorreoNuevoPedido({
+            const datosNotificacion = {
                 pedido: pedidoGuardado,
                 cliente: clienteDb,
                 usuario: usuarioDb,
                 listadoPedido,
-                info
-            }).catch(mailError => {
+                info: {
+                    ...info,
+                    detalleGeneral: detalleGeneralTexto
+                }
+            };
+
+            // Envío asíncrono de correo
+            enviarCorreoNuevoPedido(datosNotificacion).catch(mailError => {
                 console.error('Error al enviar correo del nuevo pedido:', mailError);
             });
+
+            // Envío asíncrono de notificación a Telegram (Bodega)
+            enviarNotificacionTelegramPedido(datosNotificacion).catch(tgError => {
+                console.error('Error al enviar notificación a Telegram del nuevo pedido:', tgError);
+            });
         } catch (dbError) {
-            console.error('Error al obtener datos para el correo del pedido:', dbError);
+            console.error('Error al obtener datos para notificaciones del pedido:', dbError);
         }
 
     } catch (error) {

@@ -59,7 +59,16 @@ const GastosSchema = Schema({
         type: String,
         require: false,
         default: ''
-    }
+    },
+    items: [
+        {
+            gasto: { type: String, default: '' },
+            codigo: { type: String, default: '' },
+            subCategoria: { type: String, default: 'G' },
+            cantidad: { type: Number, default: 1 },
+            precio: { type: Number, default: 0 },
+        }
+    ]
 });
 GastosSchema.method('toJSON', function () {
     const { __v, _id, ...object } = this.toObject();

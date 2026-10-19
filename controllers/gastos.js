@@ -39,7 +39,8 @@ const crearGasto = async (req, res) => {
             detalle,
             comprobante,
             comprobanteNombre,
-            comprobanteTipo
+            comprobanteTipo,
+            items
         }
             = req.body.gasto;
 
@@ -60,6 +61,7 @@ const crearGasto = async (req, res) => {
             comprobante: comprobante || null,
             comprobanteNombre: comprobanteNombre || '',
             comprobanteTipo: comprobanteTipo || '',
+            items: Array.isArray(items) ? items : [],
             user: req.body.user.uid // ✅ Extraer usuario de `req.user`
         });
 
@@ -105,7 +107,8 @@ const actualizarGasto = async (req, res) => {
             detalle,
             comprobante,
             comprobanteNombre,
-            comprobanteTipo
+            comprobanteTipo,
+            items
         } = dataGasto;
 
         const camposActualizar = {
@@ -122,6 +125,7 @@ const actualizarGasto = async (req, res) => {
             ...(comprobante !== undefined && { comprobante }),
             ...(comprobanteNombre !== undefined && { comprobanteNombre }),
             ...(comprobanteTipo !== undefined && { comprobanteTipo }),
+            ...(items !== undefined && { items: Array.isArray(items) ? items : [] }),
         };
 
         const gastoActualizado = await Gastos.findByIdAndUpdate(
