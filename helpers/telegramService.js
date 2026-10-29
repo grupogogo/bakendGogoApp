@@ -311,7 +311,22 @@ const generarMensajeCompactoTelegram = ({ pedido, cliente, usuario, listadoPedid
 
         totalCategorias += 1;
         const nombreCat = buscarNombreCategoria(categoriaKey);
-        const detalleCat = String(catData?.detalleGeneral || catData?.detalle || '').trim();
+        let detalleCat = String(
+            catData?.detalleGeneral || 
+            catData?.detalle || 
+            catData?.observaciones || 
+            catData?.observacion || 
+            catData?.nota || 
+            ''
+        ).trim();
+
+        // Si no hay detalle a nivel categoría pero hay notas en los items individuales, agregarlas
+        if (!detalleCat) {
+            const notasItems = [...new Set(items.map(it => String(it?.detalle || it?.observaciones || it?.observacion || it?.nota || '').trim()).filter(Boolean))];
+            if (notasItems.length > 0) {
+                detalleCat = notasItems.join('  |  ');
+            }
+        }
         const codeCat = categoriaKey.toUpperCase();
 
         let cantTotalCat = 0;
@@ -617,7 +632,22 @@ const generarPdfRemision = async ({ pedido, cliente, usuario, listadoPedido, inf
 
         totalCategorias += 1;
         const nombreCat = buscarNombreCategoria(categoriaKey);
-        const detalleCat = String(catData?.detalleGeneral || catData?.detalle || '').trim();
+        let detalleCat = String(
+            catData?.detalleGeneral || 
+            catData?.detalle || 
+            catData?.observaciones || 
+            catData?.observacion || 
+            catData?.nota || 
+            ''
+        ).trim();
+
+        // Si no hay detalle a nivel categoría pero hay notas en los items individuales, agregarlas
+        if (!detalleCat) {
+            const notasItems = [...new Set(items.map(it => String(it?.detalle || it?.observaciones || it?.observacion || it?.nota || '').trim()).filter(Boolean))];
+            if (notasItems.length > 0) {
+                detalleCat = notasItems.join('  |  ');
+            }
+        }
         const codeCat = categoriaKey.toUpperCase();
 
         const catObj = {
@@ -910,24 +940,33 @@ const generarPdfRemision = async ({ pedido, cliente, usuario, listadoPedido, inf
 
     let currentY = 44.5;
 
-    // 3. Cuadro de Observaciones si existen
+    // 3. Cuadro de Observaciones Generales del Pedido si existen
     if (detalleGeneral) {
+        doc.setFont('helvetica', 'normal');
+        doc.setFontSize(6.8);
+        const obsGenLines = doc.splitTextToSize(detalleGeneral, 180);
+        const obsGenH = Math.max(8, 4.2 + (obsGenLines.length * 3.1));
+
         doc.setFillColor(255, 251, 235); // #fffbeb
         doc.setDrawColor(245, 158, 11);  // #f59e0b
-        doc.roundedRect(12, currentY, 192, 8.5, 1.5, 1.5, 'FD');
+        doc.setLineWidth(0.3);
+        doc.roundedRect(12, currentY, 192, obsGenH, 1.5, 1.5, 'FD');
+
+        // Barra lateral acento ámbar
+        doc.setFillColor(245, 158, 11);
+        doc.roundedRect(12, currentY, 2, obsGenH, 0.8, 0.8, 'F');
 
         doc.setFont('helvetica', 'bold');
         doc.setFontSize(6.5);
         doc.setTextColor(180, 83, 9);
-        doc.text('OBSERVACIONES DEL PEDIDO:', 16, currentY + 3.2);
+        doc.text('OBSERVACIONES GENERALES DEL PEDIDO:', 16, currentY + 3.2);
 
         doc.setFont('helvetica', 'normal');
-        doc.setFontSize(7);
+        doc.setFontSize(6.8);
         doc.setTextColor(120, 53, 15);
-        const obsTruncada = detalleGeneral.length > 140 ? detalleGeneral.slice(0, 137) + '...' : detalleGeneral;
-        doc.text(obsTruncada, 16, currentY + 6.8);
+        doc.text(obsGenLines, 16, currentY + 6.6);
 
-        currentY += 10.5;
+        currentY += obsGenH + 2.5;
     } else {
         currentY += 1.5;
     }
@@ -935,7 +974,7 @@ const generarPdfRemision = async ({ pedido, cliente, usuario, listadoPedido, inf
     // ----------------------------------------------------
     // 4. PANELES AGRUPADOS POR CATEGORÍA CON CONTORNO DIFERENCIADOR
     // ----------------------------------------------------
-    const catGap = 3;            // Espacio entre contenedores de categoría (mm)
+    const catGap = 3.5;          // Espacio entre contenedores de categoría (mm)
     const cardHeight = 19.5;     // Altura de tarjeta de producto (mm)
     const rowPitch = 22;         // Altura de fila + gap interno (19.5 + 2.5)
     const maxGridYPage1 = 238;   // Límite en página 1 para dar espacio a firmas
@@ -960,7 +999,6 @@ const generarPdfRemision = async ({ pedido, cliente, usuario, listadoPedido, inf
     // Renderizar cada bloque de categoría
     for (const cat of categoriasProcesadas) {
         const esMonoproducto = cat.items.length === 1;
-        const totalFilasCat = esMonoproducto ? 1 : Math.ceil(cat.items.length / 2);
 
         // Agrupar los items en filas
         const filas = [];
@@ -978,8 +1016,23 @@ const generarPdfRemision = async ({ pedido, cliente, usuario, listadoPedido, inf
         while (filaIndex < filas.length) {
             const maxY = currentPage === 1 ? maxGridYPage1 : maxGridYPageN;
 
-            // Si no hay espacio ni para la cabecera + 1 fila, saltar de página
-            if (catY + 30 > maxY) {
+            // Calcular altura de observaciones si existen para esta categoría (solo en su primera sección)
+            const tieneObs = Boolean(cat.detalle && !esContinuacion);
+            let catObsLines = [];
+            let obsBlockHeight = 0;
+            let espacioObs = 0;
+
+            if (tieneObs) {
+                doc.setFont('helvetica', 'normal');
+                doc.setFontSize(6.8);
+                catObsLines = doc.splitTextToSize(cat.detalle, 176);
+                obsBlockHeight = Math.max(6.5, 3.8 + (catObsLines.length * 3.0));
+                espacioObs = obsBlockHeight + 2; // altura del bloque + margen inferior
+            }
+
+            // Si no hay espacio para la cabecera + observaciones (si hay) + al menos 1 fila, saltar de página
+            const espacioMinimoNecesario = 6.5 + espacioObs + cardHeight + 4;
+            if (catY + espacioMinimoNecesario > maxY) {
                 doc.addPage();
                 currentPage += 1;
                 dibujarHeaderCompacto(currentPage);
@@ -987,10 +1040,10 @@ const generarPdfRemision = async ({ pedido, cliente, usuario, listadoPedido, inf
             }
 
             // Calcular cuántas filas caben en el espacio disponible actual
-            const espacioDisponible = maxY - catY - 6.5 - 3;
+            const espacioDisponible = maxY - catY - 6.5 - espacioObs - 3;
             const filasQueCaben = Math.max(1, Math.floor((espacioDisponible + 2.5) / rowPitch));
             const filasADibujar = Math.min(filas.length - filaIndex, filasQueCaben);
-            const containerHeight = 6.5 + 1.5 + (filasADibujar * cardHeight) + ((filasADibujar - 1) * 2.5) + 1.5;
+            const containerHeight = 6.5 + espacioObs + 1.5 + (filasADibujar * cardHeight) + ((filasADibujar - 1) * 2.5) + 1.5;
 
             // 1. Contorno Exterior Diferenciador de la Categoría
             doc.setFillColor(252, 253, 255); // Fondo sutil para distinguir el bloque
@@ -1013,19 +1066,40 @@ const generarPdfRemision = async ({ pedido, cliente, usuario, listadoPedido, inf
             const tituloCatBarra = `${cat.nombre.toUpperCase()} [${cat.code}]${esContinuacion ? ' (Cont.)' : ''}`;
             doc.text(tituloCatBarra, 18.5, catY + 4.5);
 
-            // Resumen de unidades y nota de categoría
+            // Resumen de unidades limpio y nítido a la derecha
             doc.setFont('helvetica', 'bold');
-            doc.setFontSize(7);
+            doc.setFontSize(7.2);
             doc.setTextColor(...color.subtituloRgb);
-            let tagDerecho = `${cat.totalUnidades} UNIDADES`;
-            if (cat.detalle && !esContinuacion) {
-                const notaCorta = cat.detalle.length > 40 ? cat.detalle.slice(0, 37) + '...' : cat.detalle;
-                tagDerecho += `  |  Nota: ${notaCorta}`;
-            }
-            doc.text(tagDerecho, 201, catY + 4.5, { align: 'right' });
+            doc.text(`${cat.totalUnidades} UNIDADES`, 201, catY + 4.5, { align: 'right' });
 
-            // 3. Renderizar las Tarjetas de Producto dentro del Contorno
-            let itemRowY = catY + 8;
+            // 3. Cuadro de Observaciones / Detalle DENTRO de la Categoría (si aplica)
+            if (tieneObs) {
+                const obsBoxX = 15;
+                const obsBoxY = catY + 7.5;
+                const obsBoxW = 186;
+
+                doc.setFillColor(255, 251, 235); // #fffbeb crema cálido
+                doc.setDrawColor(245, 158, 11);  // #f59e0b borde ámbar suave
+                doc.setLineWidth(0.3);
+                doc.roundedRect(obsBoxX, obsBoxY, obsBoxW, obsBlockHeight, 1.5, 1.5, 'FD');
+
+                // Borde lateral ámbar como acento visual
+                doc.setFillColor(245, 158, 11);
+                doc.roundedRect(obsBoxX, obsBoxY, 2, obsBlockHeight, 0.8, 0.8, 'F');
+
+                doc.setFont('helvetica', 'bold');
+                doc.setFontSize(6.2);
+                doc.setTextColor(180, 83, 9); // #b45309
+                doc.text('OBSERVACIONES / DETALLE:', obsBoxX + 4.5, obsBoxY + 3.2);
+
+                doc.setFont('helvetica', 'normal');
+                doc.setFontSize(6.8);
+                doc.setTextColor(120, 53, 15); // #78350f
+                doc.text(catObsLines, obsBoxX + 4.5, obsBoxY + 6.3);
+            }
+
+            // 4. Renderizar las Tarjetas de Producto dentro del Contorno
+            let itemRowY = catY + 6.5 + 1.5 + espacioObs;
 
             for (let r = 0; r < filasADibujar; r++) {
                 const filaItems = filas[filaIndex + r];
