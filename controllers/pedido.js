@@ -13,12 +13,9 @@ const oldOrdersItems = mongoose.models.oldOrdersItems || mongoose.model("itemsol
 
 const getPedidos = async (req, res = response) => {
     try {
-        const pedidos = await Pedido.find().populate('user', 'name email telefono numIdentificacion')
-            .populate({
-                path: 'cliente',
-                select: 'nombre ciudad distribuidor direccion telefono nitCC detalle precios',
-                populate: { path: 'precios' }
-            })
+        const pedidos = await Pedido.find()
+            .populate('user', 'name email telefono numIdentificacion')
+            .populate({ path: 'cliente', select: 'nombre ciudad distribuidor direccion telefono nitCC detalle' })
             .populate({ path: 'itemPedido' })
             .sort({ fechaCreacion: -1 });
 
@@ -28,9 +25,10 @@ const getPedidos = async (req, res = response) => {
             msg: 'getPedidos'
         });
     } catch (error) {
-        res.json({
+        console.error('Error en getPedidos:', error);
+        res.status(500).json({
             ok: false,
-            error,
+            error: error.message || error,
             msg: 'getPedidos'
         });
     }
